@@ -32,7 +32,8 @@
             aggregations: [
               { ref: "cnt", expr:"count(1)" },
               { ref: "sum", expr:"sum(b)" }
-            ]
+            ],
+            orderings: []
         },
         {
             @id: 4,

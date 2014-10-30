@@ -25,6 +25,7 @@ import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.logical.data.NamedExpression;
+import org.apache.drill.common.logical.data.Order;
 import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
@@ -62,17 +63,16 @@ public class StreamingWindowFrameRecordBatch extends AbstractSingleRecordBatch<W
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
     container.clear();
-
     try {
       this.framer = createFramer();
+      if (container.isSchemaChanged()) {
+        container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
+        return true;
+      }
+      return false;
     } catch (ClassTransformationException | IOException ex) {
       throw new SchemaChangeException("Failed to create framer: " + ex);
     }
-    if (container.isSchemaChanged()) {
-      container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
-      return true;
-    }
-    return false;
   }
 
   private void getIndex(ClassGenerator<StreamingWindowFramer> g) {
@@ -103,6 +103,7 @@ public class StreamingWindowFrameRecordBatch extends AbstractSingleRecordBatch<W
     int configLength = popConfig.getAggregations().length;
     List<LogicalExpression> valueExprs = Lists.newArrayList();
     LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getWithins().length];
+    LogicalExpression[] orderExprs = new LogicalExpression[popConfig.getOrderings().length];
 
     ErrorCollector collector = new ErrorCollectorImpl();
 
@@ -148,6 +149,16 @@ public class StreamingWindowFrameRecordBatch extends AbstractSingleRecordBatch<W
       keyExprs[i] = expr;
     }
 
+    for (int i = 0; i < orderExprs.length; i++) {
+      Order.Ordering o = popConfig.getOrderings()[i];
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(o.getExpr(), incoming, collector, context.getFunctionRegistry());
+      if (expr == null) {
+        continue;
+      }
+
+      orderExprs[i] = expr;
+    }
+
     if (collector.hasErrors()) {
       throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
     }
@@ -155,6 +166,7 @@ public class StreamingWindowFrameRecordBatch extends AbstractSingleRecordBatch<W
     final ClassGenerator<StreamingWindowFramer> cg = CodeGenerator.getRoot(StreamingWindowFramer.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     setupIsSame(cg, keyExprs);
     setupIsSameFromBatch(cg, keyExprs);
+    setupIsOrderingSame(cg, orderExprs);
     addRecordValues(cg, valueExprs.toArray(new LogicalExpression[valueExprs.size()]));
     outputWindowValues(cg, windowExprs);
 
@@ -169,6 +181,10 @@ public class StreamingWindowFrameRecordBatch extends AbstractSingleRecordBatch<W
         StreamingWindowFrameTemplate.UNBOUNDED, StreamingWindowFrameTemplate.CURRENT_ROW
     );
     return agg;
+  }
+
+  private void setupIsOrderingSame(ClassGenerator<StreamingWindowFramer> cg, LogicalExpression[] orderExprs) {
+
   }
 
   private final GeneratorMapping IS_SAME_PREV_INTERNAL_BATCH_READ = GeneratorMapping.create("isSameFromBatch", "isSameFromBatch", null, null); // the internal batch changes each time so we need to redo setup.

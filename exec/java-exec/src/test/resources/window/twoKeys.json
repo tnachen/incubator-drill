@@ -26,6 +26,7 @@
             @id:3,
             child: 2,
             pop:"window",
+            orderings: [],
             within: [
               { ref: "a", expr: "a" },
               { ref: "b", expr: "b" }

@@ -18,6 +18,7 @@
 
 package org.apache.drill.exec.physical.impl.window;
 
+import com.google.common.collect.Lists;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.impl.aggregate.InternalBatch;
@@ -25,6 +26,7 @@ import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.VectorWrapper;
 
 import javax.inject.Named;
+import java.util.List;
 
 public abstract class StreamingWindowFrameTemplate implements StreamingWindowFramer {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StreamingWindowFramer.class);
@@ -42,7 +44,7 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
   private RecordBatch incoming;
   private RecordBatch outgoing;
   private FragmentContext context;
-  private InternalBatch previousBatch = null;
+  private List<InternalBatch> previousBatches = null;
   private int precedingConfig = UNBOUNDED;
   private int followingConfig = CURRENT_ROW;
 
@@ -58,13 +60,14 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
     this.outgoing = outgoing;
     this.precedingConfig = precedingConfig;
     this.followingConfig = followingConfig;
+    previousBatches = Lists.newArrayList();
 
     setupInterior(incoming, outgoing);
   }
 
 
   private void allocateOutgoing() {
-    for (VectorWrapper<?> w : outgoing){
+    for (VectorWrapper<?> w : outgoing) {
       w.getValueVector().allocateNew();
     }
   }
@@ -87,39 +90,40 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
 
   @Override
   public AggOutcome doWork() {
-    // if we're in the first state, allocate outgoing.
     try {
+      // if we're in the first state, allocate outgoing.
       if (first) {
         allocateOutgoing();
       }
 
       // setup for new output and pick any remainder.
       if (pendingOutput) {
-        allocateOutgoing();
         pendingOutput = false;
         outputToBatch(previousIndex);
       }
 
       boolean recordsAdded = false;
 
-      outside: while (true) {
+      outside:
+      while (true) {
         if (EXTRA_DEBUG) {
           logger.trace("Looping from underlying index {}, previous {}, current {}", underlyingIndex, previousIndex, currentIndex);
           logger.debug("Processing {} records in window framer", incoming.getRecordCount());
         }
         // loop through existing records, adding as necessary.
-        while(incIndex()) {
-          if (previousBatch != null) {
+        while (incIndex()) {
+          if (!previousBatches.isEmpty()) {
+            InternalBatch previousBatch = previousBatches.get(previousBatches.size() - 1);
             boolean isSameFromBatch = isSameFromBatch(previousIndex, previousBatch, currentIndex);
             if (EXTRA_DEBUG) {
               logger.trace("Same as previous batch: {}, previous index {}, current index {}", isSameFromBatch, previousIndex, currentIndex);
             }
 
-            if(!isSameFromBatch) {
+            if (!isSameFromBatch) {
               resetValues();
             }
             previousBatch.clear();
-            previousBatch = null;
+            previousBatches.remove(previousBatches.size() - 1);
           } else if (!isSame(previousIndex, currentIndex)) {
             resetValues();
           }
@@ -144,7 +148,7 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
           logger.debug("Exit Loop from underlying index {}, previous {}, current {}", underlyingIndex, previousIndex, currentIndex);
         }
 
-        previousBatch = new InternalBatch(incoming);
+        previousBatches.add(new InternalBatch(incoming));
 
         while (true) {
           RecordBatch.IterOutcome out = incoming.next();
@@ -195,7 +199,7 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
   }
 
   private RecordBatch.IterOutcome innerOutcome(RecordBatch.IterOutcome innerOutcome, boolean newRecordsAdded) {
-    if(newRecordsAdded) {
+    if (newRecordsAdded) {
       setOkAndReturn();
       return outcome;
     }
@@ -206,7 +210,7 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
   private final boolean incIndex() {
     underlyingIndex++;
 
-    if(currentIndex != -1) {
+    if (currentIndex != -1) {
       previousIndex = currentIndex;
     }
 
@@ -255,31 +259,57 @@ public abstract class StreamingWindowFrameTemplate implements StreamingWindowFra
 
   @Override
   public void cleanup() {
-    if(previousBatch != null) {
-      previousBatch.clear();
-      previousBatch = null;
+    for(InternalBatch b : previousBatches) {
+      b.clear();
     }
+    previousBatches.clear();
+    incoming.cleanup();
   }
 
   public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing) throws SchemaChangeException;
 
   /**
    * Compares withins from two indexes in the same batch
+   *
    * @param index1 First record index
    * @param index2 Second record index
    * @return does within value match
    */
   public abstract boolean isSame(@Named("index1") int index1, @Named("index2") int index2);
+
   /**
    * Compares withins from one index of given batch (typically previous completed batch), and one index from current batch
+   *
    * @param b1Index First record index
-   * @param index2 Second record index
+   * @param index2  Second record index
    * @return does within value match
    */
   public abstract boolean isSameFromBatch(@Named("b1Index") int b1Index, @Named("b1") InternalBatch b1, @Named("b2Index") int index2);
+
+  /**
+   * Compares ordering values within the same batch
+   * @param index1
+   * @param index2
+   * @return
+   */
+  //public abstract boolean isSameOrdering(@Named("index1") int index1, @Named("index2") int index2);
+
+  /**
+   * Compares ordering values with one index from given batch, and one index from current batch
+   * @param index1
+   * @param b1
+   * @param index2
+   * @return
+   */
+  //public abstract boolean isSameOrderingFromBatch
+  //    (@Named("b1Index") int index1, @Named("b1") InternalBatch b1, @Named("b2Index") int index2);
+
   public abstract void addRecord(@Named("index") int index);
+
   public abstract boolean outputRecordValues(@Named("outIndex") int outIndex);
+
   public abstract boolean outputWindowValues(@Named("inIndex") int inIndex, @Named("outIndex") int outIndex);
+
   public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
 
   public abstract boolean resetValues();

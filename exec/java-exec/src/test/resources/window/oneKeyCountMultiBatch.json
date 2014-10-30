@@ -29,6 +29,7 @@
                 "pop" : "window",
                 "@id" : 3,
                 "child" : 2,
+                "orderings": [],
                 "aggregations" : [ {
                 "ref" : "`w0$o0`",
                 "expr" : "count(`a`) "

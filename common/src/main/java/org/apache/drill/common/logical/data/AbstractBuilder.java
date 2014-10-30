@@ -17,10 +17,10 @@
  */
 package org.apache.drill.common.logical.data;
 
-import java.util.List;
-
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.LogicalExpression;
+
+import java.util.List;
 
 public abstract class AbstractBuilder<T extends LogicalOperator> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AbstractBuilder.class);
@@ -37,6 +37,10 @@ public abstract class AbstractBuilder<T extends LogicalOperator> {
 
   protected NamedExpression[] aN(List<NamedExpression> exprs){
     return exprs.toArray(new NamedExpression[exprs.size()]);
+  }
+
+  protected Order.Ordering[] aO(List<Order.Ordering> orderings) {
+    return orderings.toArray(new Order.Ordering[orderings.size()]);
   }
 
 }

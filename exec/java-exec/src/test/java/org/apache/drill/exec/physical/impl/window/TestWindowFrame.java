@@ -83,9 +83,11 @@ public class TestWindowFrame extends PopUnitTestBase {
         );
         assertEquals(sumArr[r], wrapper.getValueVector().getAccessor().getObject(r));
       }
-      batchLoader.clear();
-      batch.release();
 
+      batchLoader.clear();
+      for(QueryResultBatch b : results) {
+        b.release();
+      }
       assertEquals(4, recordCount);
     }
   }

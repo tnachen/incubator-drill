@@ -26,29 +26,34 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.PhysicalVisitor;
 import org.apache.drill.exec.proto.UserBitShared;
 
+import static org.apache.drill.common.logical.data.Order.Ordering;
+
 @JsonTypeName("window")
 public class WindowPOP extends AbstractSingle {
 
   private final NamedExpression[] withins;
   private final NamedExpression[] aggregations;
+  private final Ordering[] orderings;
   private final long start;
   private final long end;
 
   public WindowPOP(@JsonProperty("child") PhysicalOperator child,
                    @JsonProperty("within") NamedExpression[] withins,
                    @JsonProperty("aggregations") NamedExpression[] aggregations,
+                   @JsonProperty("orderings") Ordering[] orderings,
                    @JsonProperty("start") long start,
                    @JsonProperty("end") long end) {
     super(child);
     this.withins = withins;
     this.aggregations = aggregations;
+    this.orderings = orderings;
     this.start = start;
     this.end = end;
   }
 
   @Override
   protected PhysicalOperator getNewWithChild(PhysicalOperator child) {
-    return new WindowPOP(child, withins, aggregations, start, end);
+    return new WindowPOP(child, withins, aggregations, orderings, start, end);
   }
 
   @Override
@@ -75,5 +80,9 @@ public class WindowPOP extends AbstractSingle {
 
   public NamedExpression[] getWithins() {
     return withins;
+  }
+
+  public Ordering[] getOrderings() {
+    return orderings;
   }
 }

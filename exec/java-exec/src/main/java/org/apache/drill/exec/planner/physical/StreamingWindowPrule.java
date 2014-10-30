@@ -68,28 +68,28 @@ public class StreamingWindowPrule extends RelOptRule {
       final RelNode convertedInput = convert(input, traits);
 
       List<RelDataTypeField> newRowFields = Lists.newArrayList();
-      for(RelDataTypeField field : convertedInput.getRowType().getFieldList()) {
+      for (RelDataTypeField field : convertedInput.getRowType().getFieldList()) {
         newRowFields.add(field);
       }
 
       Iterable<RelDataTypeField> newWindowFields = Iterables.filter(window.getRowType().getFieldList(), new Predicate<RelDataTypeField>() {
-            @Override
-            public boolean apply(RelDataTypeField relDataTypeField) {
-              return relDataTypeField.getName().startsWith("w" + w.i + "$");
-            }
+        @Override
+        public boolean apply(RelDataTypeField relDataTypeField) {
+          return relDataTypeField.getName().startsWith("w" + w.i + "$");
+        }
       });
 
-      for(RelDataTypeField newField : newWindowFields) {
+      for (RelDataTypeField newField : newWindowFields) {
         newRowFields.add(newField);
       }
 
       RelDataType rowType = new RelRecordType(newRowFields);
 
       List<WindowRelBase.RexWinAggCall> newWinAggCalls = Lists.newArrayList();
-      for(Ord<WindowRelBase.RexWinAggCall> aggOrd : Ord.zip(windowBase.aggCalls)) {
+      for (Ord<WindowRelBase.RexWinAggCall> aggOrd : Ord.zip(windowBase.aggCalls)) {
         WindowRelBase.RexWinAggCall aggCall = aggOrd.getValue();
         newWinAggCalls.add(new WindowRelBase.RexWinAggCall(
-            (SqlAggFunction)aggCall.getOperator(), aggCall.getType(), aggCall.getOperands(), aggOrd.i)
+                (SqlAggFunction) aggCall.getOperator(), aggCall.getType(), aggCall.getOperands(), aggOrd.i)
         );
       }
 
@@ -119,6 +119,11 @@ public class StreamingWindowPrule extends RelOptRule {
     for (int group : BitSets.toIter(window.groupSet)) {
       fields.add(new RelFieldCollation(group));
     }
+
+    for (RelFieldCollation field : window.orderKeys.getFieldCollations()) {
+      fields.add(field);
+    }
+
     return RelCollationImpl.of(fields);
   }
 

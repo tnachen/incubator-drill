@@ -40,17 +40,20 @@ public class Window extends SingleInputOperator {
   private final NamedExpression[] aggregations;
   private final long start;
   private final long end;
+  private final Order.Ordering[] orderings;
 
 
   @JsonCreator
   public Window(@JsonProperty("withins") NamedExpression[] withins,
                 @JsonProperty("aggregations") NamedExpression[] aggregations,
+                @JsonProperty("orderings") Order.Ordering[] orderings,
                 @JsonProperty("start") Long start,
                 @JsonProperty("end") Long end) {
     super();
     this.withins = withins;
     this.start = start == null ? Long.MIN_VALUE : start;
     this.end = end == null ? Long.MIN_VALUE : end;
+    this.orderings = orderings;
     this.aggregations = aggregations;
   }
 
@@ -68,6 +71,10 @@ public class Window extends SingleInputOperator {
 
   public NamedExpression[] getAggregations() {
     return aggregations;
+  }
+
+  public Order.Ordering[] getOrderings() {
+    return orderings;
   }
 
   @Override
@@ -101,7 +108,7 @@ public class Window extends SingleInputOperator {
     public Window internalBuild() {
       checkState(!withins.isEmpty(), "Withins in window must not be empty.");
       checkState(!aggregations.isEmpty(), "Aggregations in window must not be empty.");
-      return new Window(aN(withins), aN(aggregations), start, end);
+      return new Window(aN(withins), aN(aggregations), aO(orderings), start, end);
     }
 
     public Builder addOrdering(Order.Ordering ordering) {
